@@ -79,7 +79,10 @@ use atmosphere_mod,     only: Atm, mygrid, get_nth_domain_info
 use block_control_mod,  only: block_control_type, define_blocks_packed
 use DYCORE_typedefs,    only: DYCORE_data_type, DYCORE_diag_type
 
-use GFS_typedefs,       only: GFS_init_type, GFS_kind_phys => kind_phys
+use GFS_typedefs,       only: GFS_init_type, GFS_kind_phys => kind_phys, &
+                              statein_type => GFS_statein_type, &
+                              stateout_type => GFS_stateout_type, &
+                              sfcprop_type => GFS_sfcprop_type
 use GFS_restart,        only: GFS_restart_type, GFS_restart_populate
 use GFS_diagnostics,    only: GFS_externaldiag_type, &
                               GFS_externaldiag_populate
@@ -102,9 +105,9 @@ use module_block_data,  only: block_atmos_copy, block_data_copy,         &
                               block_data_copy_or_fill,                   &
                               block_data_combine_fractions
 
-use machine,            only: kind_phys
+!use machine,            only: kind_phys
 use neuralphys,         only: init_nn, eval_nn
-use physics_abstraction_layer, only: statein_type, stateout_type, sfcprop_type
+!use physics_abstraction_layer, only: statein_type, stateout_type, sfcprop_type
 
 
 #ifdef MOVING_NEST
@@ -421,7 +424,7 @@ if (.true.) then
 
        do nb = 1,Atm_block%nblks
           do i = 1, Atm_block%blksz(nb)
-             call eval_nn(          IPD_Data(nb)%Statein%pgr(i),      &
+             call eval_nn(          GFS_data(nb)%Statein%pgr(i),      &
                                     !IPD_Data(nb)%Statein%phil(i,:),   &
                                     !IPD_Data(nb)%Statein%prsl(i,:),   &
                                     !IPD_Data(nb)%Statein%ugrs(i,:),   &
@@ -429,45 +432,45 @@ if (.true.) then
                                     !IPD_Data(nb)%Statein%vvl(i,:),    &
                                     !IPD_Data(nb)%Statein%tgrs(i,:),   &
                                     !IPD_Data(nb)%Statein%qgrs(i,:,1), &
-                                    IPD_Data(nb)%Stateout%gu0(i,:),  &   ! get physics output
-                                    IPD_Data(nb)%Stateout%gv0(i,:),  &
-                                    IPD_Data(nb)%Stateout%gt0(i,:),  &
-                                    IPD_Data(nb)%Stateout%gq0(i,:,1),  &
+                                    GFS_data(nb)%Stateout%gu0(i,:),  &   ! get physics output
+                                    GFS_data(nb)%Stateout%gv0(i,:),  &
+                                    GFS_data(nb)%Stateout%gt0(i,:),  &
+                                    GFS_data(nb)%Stateout%gq0(i,:,1),  &
                                     !IPD_Data(nb)%Statein%qgrs(i,:,IPD_Control%ntcw), &
                                     !IPD_Data(nb)%Statein%qgrs(i,:,IPD_Control%ntoz), &
                                     !IPD_Data(nb)%Statein%smc(i,:),      &
                                     !IPD_Data(nb)%Statein%slc(i,:),      &
                                     !IPD_Data(nb)%Statein%stc(i,:),      &
-                                    IPD_Data(nb)%Intdiag%cmm(i),      &
-                                    IPD_Interstitial(nb)%evcw(i),      &
-                                    IPD_Interstitial(nb)%evbs(i),      &
-                                    IPD_Interstitial(nb)%sbsno(i),      &
-                                    IPD_Interstitial(nb)%snohf(i),      &
-                                    IPD_Interstitial(nb)%snowc(i),      &
-                                    IPD_Data(nb)%Intdiag%srunoff(i),      &
-                                    IPD_Interstitial(nb)%trans(i),      &
-                                    IPD_Data(nb)%Sfcprop%tsfc(i),      &
-                                    IPD_Data(nb)%Sfcprop%tisfc(i),      &
-                                    IPD_Data(nb)%Sfcprop%q2m(i),      &
-                                    IPD_Data(nb)%Intdiag%epi(i),      &
-                                    IPD_Data(nb)%Sfcprop%zorl(i),      &
-                                    IPD_Data(nb)%Sfcprop%alboldxy(i),      &
-                                    IPD_Data(nb)%Radtend%sfcflw(i),      &
-                                    IPD_Data(nb)%Radtend%sfcfsw(i),      &
-                                    IPD_Data(nb)%Intdiag%topflw(i),      &
-                                    IPD_Data(nb)%Intdiag%topfsw(i),      &
-                                    IPD_Data(nb)%Sfcprop%slmsk(i),      &
+                                    GFS_data(nb)%Intdiag%cmm(i),      &
+                                    GFS_interstitial(nb)%evcw(i),      &
+                                    GFS_interstitial(nb)%evbs(i),      &
+                                    GFS_interstitial(nb)%sbsno(i),      &
+                                    GFS_interstitial(nb)%snohf(i),      &
+                                    GFS_interstitial(nb)%snowc(i),      &
+                                    GFS_data(nb)%Intdiag%srunoff(i),      &
+                                    GFS_interstitial(nb)%trans(i),      &
+                                    GFS_data(nb)%Sfcprop%tsfc(i),      &
+                                    GFS_data(nb)%Sfcprop%tisfc(i),      &
+                                    GFS_data(nb)%Sfcprop%q2m(i),      &
+                                    GFS_data(nb)%Intdiag%epi(i),      &
+                                    GFS_data(nb)%Sfcprop%zorl(i),      &
+                                    GFS_data(nb)%Sfcprop%alboldxy(i),      &
+                                    GFS_data(nb)%Radtend%sfcflw(i),      &
+                                    GFS_data(nb)%Radtend%sfcfsw(i),      &
+                                    GFS_data(nb)%Intdiag%topflw(i),      &
+                                    GFS_data(nb)%Intdiag%topfsw(i),      &
+                                    GFS_data(nb)%Sfcprop%slmsk(i),      &
                                     !IPD_Data(nb)%Sfcprop%canopy(i),      &
                                     !IPD_Data(nb)%Sfcprop%hice(i),      &
                                     !IPD_Data(nb)%Sfcprop%weasd(i),      &
-                                    real(jdat(5), kind_phys), & ! fhour
-                                    real(jdat(3), kind_phys), & ! doy
+                                    real(jdat(5), GFS_kind_phys), & ! fhour
+                                    real(jdat(3), GFS_kind_phys), & ! doy
 !                                    real(IPD_Control%fhour, kind_phys), &
 !                                    real(IPD_Control%julian - 18000, kind_phys), &
 !                                    real(jdat(2), kind_phys), &
-                                    IPD_Data(nb)%Grid%xlon(i),      &
-                                    IPD_Data(nb)%Grid%xlat(i),      &
-                                    IPD_control%dtp/(6.*3600.),       & !scaling using time_step_for_physics
+                                    GFS_data(nb)%Grid%xlon(i),      &
+                                    GFS_data(nb)%Grid%xlat(i),      &
+                                    GFS_Control%dtp/(6.*3600.),       & !scaling using time_step_for_physics
 !                                    IPD_Data(nb)%Radtend%coszen(i),      &
 !                                    IPD_Control%solcon,      &
 !Outputs
@@ -492,7 +495,7 @@ if (.true.) then
 
 
    call mpp_clock_begin(updnnphysClock)
-    IPD_Data(:)%Stateout = Stateout_tmp
+    GFS_data(:)%Stateout = Stateout_tmp
    call mpp_clock_end(updnnphysClock)
 !endif
 !       do nb = 1,Atm_block%nblks
@@ -628,7 +631,7 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
   type (atmos_data_type), intent(inout) :: Atmos
   type (time_type), intent(in) :: Time_init, Time, Time_step
 !--- local variables ---
-  integer :: unit, i
+  integer :: unit, i, j
   integer :: mlon, mlat, nlon, nlat, nlev, sec
   integer :: ierr, io, logunit
   integer :: tile_num
@@ -805,8 +808,8 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
    allocate(Sfcprop_tmp(Atm_block%nblks))
    do i = 1,size(Init_parm%blksz)
       j = Init_parm%blksz(i)
-      call Stateout_tmp (i)%create (j, IPD_Control)
-      call Sfcprop_tmp  (i)%create (j, IPD_Control)
+      call Stateout_tmp (i)%create (j, GFS_Control)
+      call Sfcprop_tmp  (i)%create (j, GFS_Control)
    enddo
 
    nnphysClock     = mpp_clock_id( 'NN Physics            ', flags=clock_flag_default, grain=CLOCK_COMPONENT )
