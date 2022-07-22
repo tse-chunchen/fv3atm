@@ -53,7 +53,7 @@ use fms_mod,            only: close_file, write_version_number, stdlog, stdout
 use fms_mod,            only: clock_flag_default
 use fms_mod,            only: check_nml_error
 use diag_manager_mod,   only: diag_send_complete_instant
-use time_manager_mod,   only: time_type, get_time, get_date, &
+use time_manager_mod,   only: time_type, get_time, get_date, day_of_year, &
                               operator(+), operator(-),real_to_time_type
 use field_manager_mod,  only: MODEL_ATMOS
 use tracer_manager_mod, only: get_number_tracers, get_tracer_names, &
@@ -101,6 +101,11 @@ use module_fv3_config,  only: output_1st_tstep_rst, first_kdt, nsout,    &
 use module_block_data,  only: block_atmos_copy, block_data_copy,         &
                               block_data_copy_or_fill,                   &
                               block_data_combine_fractions
+
+use machine,            only: kind_phys
+use neuralphys,         only: init_nn, eval_nn
+use physics_abstraction_layer, only: statein_type, stateout_type, sfcprop_type
+
 
 #ifdef MOVING_NEST
 use fv_moving_nest_main_mod, only: update_moving_nest, dump_moving_nest
@@ -165,7 +170,7 @@ real(kind=GFS_kind_phys), pointer, dimension(:,:), save :: lat_bnd_work  => null
 integer, save :: i_bnd_size, j_bnd_size
 
 integer :: fv3Clock, getClock, updClock, setupClock, radClock, physClock
-
+integer :: nnphysClock, updnnphysClock
 !-----------------------------------------------------------------------
 integer :: blocksize    = 1
 logical :: chksum_debug = .false.
@@ -202,6 +207,8 @@ type(iau_external_data_type)        :: IAU_Data ! number of blocks
 !-----------------
 type (block_control_type), target   :: Atm_block
 
+type(stateout_type), allocatable :: Stateout_tmp(:) ! number of blocks
+type(sfcprop_type ), allocatable :: Sfcprop_tmp(:) ! number of blocks
 !-----------------------------------------------------------------------
 
 character(len=128) :: version = '$Id$'
@@ -248,7 +255,7 @@ subroutine update_atmos_radiation_physics (Atmos)
   type (atmos_data_type), intent(in) :: Atmos
 !--- local variables---
     integer :: idtend, itrac
-    integer :: nb, jdat(8), rc, ierr
+    integer :: nb, jdat(8), rc, i, ierr
 
     if (mpp_pe() == mpp_root_pe() .and. debug) write(6,*) "statein driver"
 !--- get atmospheric state from the dynamic core
@@ -273,6 +280,7 @@ subroutine update_atmos_radiation_physics (Atmos)
       jdat(:) = 0
       call get_date (Atmos%Time, jdat(1), jdat(2), jdat(3),  &
                                  jdat(5), jdat(6), jdat(7))
+      jdat(3) = day_of_year(Atmos%Time)
       GFS_control%jdat(:) = jdat(:)
 
 !--- execute the atmospheric setup step
@@ -404,6 +412,105 @@ subroutine update_atmos_radiation_physics (Atmos)
       call mpp_clock_end(setupClock)
 
     endif
+
+!if(IPD_Control%do_full_phys_nn) then
+!      if (debug) write(6,*) "Calling NN"
+
+if (.true.) then
+      call mpp_clock_begin(nnphysClock)
+
+       do nb = 1,Atm_block%nblks
+          do i = 1, Atm_block%blksz(nb)
+             call eval_nn(          IPD_Data(nb)%Statein%pgr(i),      &
+                                    !IPD_Data(nb)%Statein%phil(i,:),   &
+                                    !IPD_Data(nb)%Statein%prsl(i,:),   &
+                                    !IPD_Data(nb)%Statein%ugrs(i,:),   &
+                                    !IPD_Data(nb)%Statein%vgrs(i,:),  &
+                                    !IPD_Data(nb)%Statein%vvl(i,:),    &
+                                    !IPD_Data(nb)%Statein%tgrs(i,:),   &
+                                    !IPD_Data(nb)%Statein%qgrs(i,:,1), &
+                                    IPD_Data(nb)%Stateout%gu0(i,:),  &   ! get physics output
+                                    IPD_Data(nb)%Stateout%gv0(i,:),  &
+                                    IPD_Data(nb)%Stateout%gt0(i,:),  &
+                                    IPD_Data(nb)%Stateout%gq0(i,:,1),  &
+                                    !IPD_Data(nb)%Statein%qgrs(i,:,IPD_Control%ntcw), &
+                                    !IPD_Data(nb)%Statein%qgrs(i,:,IPD_Control%ntoz), &
+                                    !IPD_Data(nb)%Statein%smc(i,:),      &
+                                    !IPD_Data(nb)%Statein%slc(i,:),      &
+                                    !IPD_Data(nb)%Statein%stc(i,:),      &
+                                    IPD_Data(nb)%Intdiag%cmm(i),      &
+                                    IPD_Interstitial(nb)%evcw(i),      &
+                                    IPD_Interstitial(nb)%evbs(i),      &
+                                    IPD_Interstitial(nb)%sbsno(i),      &
+                                    IPD_Interstitial(nb)%snohf(i),      &
+                                    IPD_Interstitial(nb)%snowc(i),      &
+                                    IPD_Data(nb)%Intdiag%srunoff(i),      &
+                                    IPD_Interstitial(nb)%trans(i),      &
+                                    IPD_Data(nb)%Sfcprop%tsfc(i),      &
+                                    IPD_Data(nb)%Sfcprop%tisfc(i),      &
+                                    IPD_Data(nb)%Sfcprop%q2m(i),      &
+                                    IPD_Data(nb)%Intdiag%epi(i),      &
+                                    IPD_Data(nb)%Sfcprop%zorl(i),      &
+                                    IPD_Data(nb)%Sfcprop%alboldxy(i),      &
+                                    IPD_Data(nb)%Radtend%sfcflw(i),      &
+                                    IPD_Data(nb)%Radtend%sfcfsw(i),      &
+                                    IPD_Data(nb)%Intdiag%topflw(i),      &
+                                    IPD_Data(nb)%Intdiag%topfsw(i),      &
+                                    IPD_Data(nb)%Sfcprop%slmsk(i),      &
+                                    !IPD_Data(nb)%Sfcprop%canopy(i),      &
+                                    !IPD_Data(nb)%Sfcprop%hice(i),      &
+                                    !IPD_Data(nb)%Sfcprop%weasd(i),      &
+                                    real(jdat(5), kind_phys), & ! fhour
+                                    real(jdat(3), kind_phys), & ! doy
+!                                    real(IPD_Control%fhour, kind_phys), &
+!                                    real(IPD_Control%julian - 18000, kind_phys), &
+!                                    real(jdat(2), kind_phys), &
+                                    IPD_Data(nb)%Grid%xlon(i),      &
+                                    IPD_Data(nb)%Grid%xlat(i),      &
+                                    IPD_control%dtp/(6.*3600.),       & !scaling using time_step_for_physics
+!                                    IPD_Data(nb)%Radtend%coszen(i),      &
+!                                    IPD_Control%solcon,      &
+!Outputs
+                                    Stateout_tmp(nb)%gu0(i,:),      &
+                                    Stateout_tmp(nb)%gv0(i,:),      &
+                                    Stateout_tmp(nb)%gt0(i,:),      &
+                                    Stateout_tmp(nb)%gq0(i,:,1)     )
+                                    !Stateout_tmp(nb)%gq0(i,:,IPD_Control%ntcw),      &
+                                    !Stateout_tmp(nb)%gq0(i,:,IPD_Control%ntoz),      &
+                                    !Sfcprop_tmp(nb)%smc(i,:),      &
+                                    !Sfcprop_tmp(nb)%slc(i,:),      &
+                                    !Sfcprop_tmp(nb)%stc(i,:),      &
+                                    !Sfcprop_tmp(nb)%tsfc(i),      &
+                                    !Sfcprop_tmp(nb)%canopy(i),      &
+                                    !Sfcprop_tmp(nb)%hice(i),      &
+                                    !Sfcprop_tmp(nb)%weasd(i))
+
+          enddo
+       enddo
+       call mpp_clock_end(nnphysClock)
+!      if (debug) write(6,*) "Returned from NN"
+
+
+   call mpp_clock_begin(updnnphysClock)
+    IPD_Data(:)%Stateout = Stateout_tmp
+   call mpp_clock_end(updnnphysClock)
+!endif
+!       do nb = 1,Atm_block%nblks
+!          do i = 1, Atm_block%blksz(nb)
+!
+!!             IPD_Data(nb)%Sfcprop%smc(i,:)  = Sfcprop_tmp(nb)%smc(i,:)
+!             IPD_Data(nb)%Sfcprop%smc(i,:)   = Sfcprop_tmp(nb)%smc(i,:)
+!             IPD_Data(nb)%Sfcprop%slc(i,:)  = Sfcprop_tmp(nb)%slc(i,:)
+!             IPD_Data(nb)%Sfcprop%stc(i,:)   = Sfcprop_tmp(nb)%stc(i,:)
+!            IPD_Data(nb)%Sfcprop%tsfc(i)  = Sfcprop_tmp(nb)%tsfc(i)
+!             IPD_Data(nb)%Sfcprop%canopy(i) = Sfcprop_tmp(nb)%canopy(i)
+!             IPD_Data(nb)%Sfcprop%hice(i) = Sfcprop_tmp(nb)%hice(i)
+!             IPD_Data(nb)%Sfcprop%weasd(i) = Sfcprop_tmp(nb)%weasd(i)
+!
+!          enddo
+!       enddo
+endif
+
 
     ! Per-timestep diagnostics must be after physics but before
     ! flagging the first timestep.
@@ -690,6 +797,22 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
    call GFS_initialize (GFS_control, GFS_data%Statein, GFS_data%Stateout, GFS_data%Sfcprop,     &
                         GFS_data%Coupling, GFS_data%Grid, GFS_data%Tbd, GFS_data%Cldprop, GFS_data%Radtend, &
                         GFS_data%Intdiag, GFS_interstitial, Init_parm)
+
+!   if ( IPD_Control%do_full_phys_nn) &
+   call  init_nn(Init_parm%me)
+
+   allocate(Stateout_tmp(Atm_block%nblks))
+   allocate(Sfcprop_tmp(Atm_block%nblks))
+   do i = 1,size(Init_parm%blksz)
+      j = Init_parm%blksz(i)
+      call Stateout_tmp (i)%create (j, IPD_Control)
+      call Sfcprop_tmp  (i)%create (j, IPD_Control)
+   enddo
+
+   nnphysClock     = mpp_clock_id( 'NN Physics            ', flags=clock_flag_default, grain=CLOCK_COMPONENT )
+   updnnphysClock  = mpp_clock_id( 'Copy NN Physics Output', flags=clock_flag_default, grain=CLOCK_COMPONENT )
+
+!endif
 
    !--- populate/associate the Diag container elements
    call GFS_externaldiag_populate (GFS_Diag, GFS_Control, GFS_Data%Statein, GFS_Data%Stateout,   &
