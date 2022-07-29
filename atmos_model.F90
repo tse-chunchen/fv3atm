@@ -105,7 +105,7 @@ use module_block_data,  only: block_atmos_copy, block_data_copy,         &
                               block_data_copy_or_fill,                   &
                               block_data_combine_fractions
 
-!use machine,            only: kind_phys
+use machine,            only: kind_phys
 use neuralphys,         only: init_nn, eval_nn
 !use physics_abstraction_layer, only: statein_type, stateout_type, sfcprop_type
 
@@ -418,72 +418,43 @@ subroutine update_atmos_radiation_physics (Atmos)
 
 if (.true.) then
       call mpp_clock_begin(nnphysClock)
-
+      Stateout_tmp = GFS_data(:)%Stateout
        do nb = 1,Atm_block%nblks
           do i = 1, Atm_block%blksz(nb)
              call eval_nn(          GFS_data(nb)%Statein%pgr(i),      &
-                                    !IPD_Data(nb)%Statein%phil(i,:),   &
-                                    !IPD_Data(nb)%Statein%prsl(i,:),   &
-                                    !IPD_Data(nb)%Statein%ugrs(i,:),   &
-                                    !IPD_Data(nb)%Statein%vgrs(i,:),  &
-                                    !IPD_Data(nb)%Statein%vvl(i,:),    &
-                                    !IPD_Data(nb)%Statein%tgrs(i,:),   &
-                                    !IPD_Data(nb)%Statein%qgrs(i,:,1), &
                                     GFS_data(nb)%Stateout%gu0(i,:),  &   ! get physics output
                                     GFS_data(nb)%Stateout%gv0(i,:),  &
                                     GFS_data(nb)%Stateout%gt0(i,:),  &
                                     GFS_data(nb)%Stateout%gq0(i,:,1),  &
-                                    !IPD_Data(nb)%Statein%qgrs(i,:,IPD_Control%ntcw), &
-                                    !IPD_Data(nb)%Statein%qgrs(i,:,IPD_Control%ntoz), &
-                                    !IPD_Data(nb)%Statein%smc(i,:),      &
-                                    !IPD_Data(nb)%Statein%slc(i,:),      &
-                                    !IPD_Data(nb)%Statein%stc(i,:),      &
-                                    GFS_data(nb)%Intdiag%cmm(i),      &
-                                    GFS_interstitial(nb)%evcw(i),      &
-                                    GFS_interstitial(nb)%evbs(i),      &
-                                    GFS_interstitial(nb)%sbsno(i),      &
-                                    GFS_interstitial(nb)%snohf(i),      &
-                                    GFS_interstitial(nb)%snowc(i),      &
-                                    GFS_data(nb)%Intdiag%srunoff(i),      &
-                                    GFS_interstitial(nb)%trans(i),      &
+                                    0., & !GFS_interstitial(nb)%CMM(i),      &
+                                    0., & !GFS_interstitial(nb)%evcw(i),      &
+                                    0., & !GFS_interstitial(nb)%evbs(i),      &
+                                    0., & !GFS_interstitial(nb)%sbsno(i),      &
+                                    0., & !GFS_interstitial(nb)%snohf(i),      &
+                                    0., & !GFS_interstitial(nb)%snowc(i),      &
+                                    0., & !GFS_data(nb)%Intdiag%srunoff(i),      &
+                                    0., & !GFS_interstitial(nb)%trans(i),      &
                                     GFS_data(nb)%Sfcprop%tsfc(i),      &
                                     GFS_data(nb)%Sfcprop%tisfc(i),      &
                                     GFS_data(nb)%Sfcprop%q2m(i),      &
-                                    GFS_data(nb)%Intdiag%epi(i),      &
-                                    GFS_data(nb)%Sfcprop%zorl(i),      &
-                                    GFS_data(nb)%Sfcprop%alboldxy(i),      &
+                                    0., & !GFS_data(nb)%Intdiag%epi(i),      &
+                                    0., & !GFS_data(nb)%Sfcprop%zorl(i),      &
+                                    0., & !GFS_data(nb)%Sfcprop%alboldxy(i),      &
                                     GFS_data(nb)%Radtend%sfcflw(i),      &
                                     GFS_data(nb)%Radtend%sfcfsw(i),      &
                                     GFS_data(nb)%Intdiag%topflw(i),      &
                                     GFS_data(nb)%Intdiag%topfsw(i),      &
                                     GFS_data(nb)%Sfcprop%slmsk(i),      &
-                                    !IPD_Data(nb)%Sfcprop%canopy(i),      &
-                                    !IPD_Data(nb)%Sfcprop%hice(i),      &
-                                    !IPD_Data(nb)%Sfcprop%weasd(i),      &
-                                    real(jdat(5), GFS_kind_phys), & ! fhour
-                                    real(jdat(3), GFS_kind_phys), & ! doy
-!                                    real(IPD_Control%fhour, kind_phys), &
-!                                    real(IPD_Control%julian - 18000, kind_phys), &
-!                                    real(jdat(2), kind_phys), &
-                                    GFS_data(nb)%Grid%xlon(i),      &
-                                    GFS_data(nb)%Grid%xlat(i),      &
-                                    GFS_Control%dtp/(6.*3600.),       & !scaling using time_step_for_physics
-!                                    IPD_Data(nb)%Radtend%coszen(i),      &
-!                                    IPD_Control%solcon,      &
+                                    real(jdat(5), kind_phys), & ! fhour
+                                    real(jdat(3), kind_phys), & ! doy
+                                    GFS_data(nb)%Grid%xlon(i),     &  ! in radians
+                                    GFS_data(nb)%Grid%xlat(i),     &
+                                    GFS_Control%dtp/(6.*3600.),    & !scaling using time_step_for_physics
 !Outputs
                                     Stateout_tmp(nb)%gu0(i,:),      &
                                     Stateout_tmp(nb)%gv0(i,:),      &
                                     Stateout_tmp(nb)%gt0(i,:),      &
                                     Stateout_tmp(nb)%gq0(i,:,1)     )
-                                    !Stateout_tmp(nb)%gq0(i,:,IPD_Control%ntcw),      &
-                                    !Stateout_tmp(nb)%gq0(i,:,IPD_Control%ntoz),      &
-                                    !Sfcprop_tmp(nb)%smc(i,:),      &
-                                    !Sfcprop_tmp(nb)%slc(i,:),      &
-                                    !Sfcprop_tmp(nb)%stc(i,:),      &
-                                    !Sfcprop_tmp(nb)%tsfc(i),      &
-                                    !Sfcprop_tmp(nb)%canopy(i),      &
-                                    !Sfcprop_tmp(nb)%hice(i),      &
-                                    !Sfcprop_tmp(nb)%weasd(i))
 
           enddo
        enddo
@@ -492,7 +463,7 @@ if (.true.) then
 
 
    call mpp_clock_begin(updnnphysClock)
-    GFS_data(:)%Stateout = Stateout_tmp
+    GFS_data(:)%Stateout  = Stateout_tmp
    call mpp_clock_end(updnnphysClock)
 !endif
 !       do nb = 1,Atm_block%nblks
