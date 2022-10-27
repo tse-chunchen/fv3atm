@@ -419,6 +419,7 @@ subroutine update_atmos_radiation_physics (Atmos)
 if (.true.) then
       call mpp_clock_begin(nnphysClock)
       Stateout_tmp = GFS_data(:)%Stateout
+      !print *, "time step of physics: ", sngl(GFS_Control%dtp)
        do nb = 1,Atm_block%nblks
           do i = 1, Atm_block%blksz(nb)
              call eval_nn(          GFS_data(nb)%Statein%pgr(i),      &
@@ -426,30 +427,30 @@ if (.true.) then
                                     GFS_data(nb)%Stateout%gv0(i,:),  &
                                     GFS_data(nb)%Stateout%gt0(i,:),  &
                                     GFS_data(nb)%Stateout%gq0(i,:,1),  &
-                                    0., & !GFS_interstitial(nb)%CMM(i),      &
-                                    0., & !GFS_interstitial(nb)%evcw(i),      &
-                                    0., & !GFS_interstitial(nb)%evbs(i),      &
-                                    0., & !GFS_interstitial(nb)%sbsno(i),      &
-                                    0., & !GFS_interstitial(nb)%snohf(i),      &
-                                    0., & !GFS_interstitial(nb)%snowc(i),      &
-                                    0., & !GFS_data(nb)%Intdiag%srunoff(i),      &
-                                    0., & !GFS_interstitial(nb)%trans(i),      &
-                                    GFS_data(nb)%Sfcprop%tsfc(i),      &
-                                    GFS_data(nb)%Sfcprop%tisfc(i),      &
-                                    GFS_data(nb)%Sfcprop%q2m(i),      &
-                                    0., & !GFS_data(nb)%Intdiag%epi(i),      &
-                                    0., & !GFS_data(nb)%Sfcprop%zorl(i),      &
-                                    0., & !GFS_data(nb)%Sfcprop%alboldxy(i),      &
+                                    !0., & !Atmos%Diag(nb)%CMM(i),      &
+                                    !0., & !GFS_interstitial(nb)%evcw(i),      &
+                                    !0., & !GFS_interstitial(nb)%evbs(i),      &
+                                    !0., & !GFS_interstitial(nb)%sbsno(i),      &
+                                    !0., & !GFS_interstitial(nb)%snohf(i),      &
+                                    !0., & !GFS_interstitial(nb)%snowc(i),      &
+                                    !0., & !GFS_data(nb)%Intdiag%srunoff(i),      &
+                                    !0., & !GFS_interstitial(nb)%trans(i),      &
+                                    !GFS_data(nb)%Sfcprop%tsfc(i),      &
+                                    !GFS_data(nb)%Sfcprop%tisfc(i),      &
+                                    !GFS_data(nb)%Sfcprop%q2m(i),      &
+                                    !0., & !GFS_data(nb)%Intdiag%epi(i),      &
+                                    !0., & !GFS_data(nb)%Sfcprop%zorl(i),      &
+                                    !0., & !GFS_data(nb)%Sfcprop%alboldxy(i),      &
                                     GFS_data(nb)%Radtend%sfcflw(i),      &
                                     GFS_data(nb)%Radtend%sfcfsw(i),      &
                                     GFS_data(nb)%Intdiag%topflw(i),      &
                                     GFS_data(nb)%Intdiag%topfsw(i),      &
-                                    GFS_data(nb)%Sfcprop%slmsk(i),      &
-                                    real(jdat(5), kind_phys), & ! fhour
-                                    real(jdat(3), kind_phys), & ! doy
-                                    GFS_data(nb)%Grid%xlon(i),     &  ! in radians
-                                    GFS_data(nb)%Grid%xlat(i),     &
-                                    GFS_Control%dtp/(6.*3600.),    & !scaling using time_step_for_physics
+                                    real(GFS_data(nb)%Sfcprop%slmsk(i), 4),      &
+                                    real(jdat(5), 4), & ! fhour
+                                    real(jdat(3), 4), & ! doy
+                                    real(GFS_data(nb)%Grid%xlon(i),4),     &  ! in radians
+                                    real(GFS_data(nb)%Grid%xlat(i),4),     &
+                                    real(GFS_Control%dtp/(6.*3600.),4),    & !scaling using time_step_for_physics
 !Outputs
                                     Stateout_tmp(nb)%gu0(i,:),      &
                                     Stateout_tmp(nb)%gv0(i,:),      &
