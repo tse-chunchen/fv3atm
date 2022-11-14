@@ -416,7 +416,8 @@ subroutine update_atmos_radiation_physics (Atmos)
 !if(IPD_Control%do_full_phys_nn) then
 !      if (debug) write(6,*) "Calling NN"
 
-if (.true.) then
+if ( GFS_control%do_bc .and. mod(GFS_control%kdt*GFS_Control%dtp,3600.d0)==0 ) then
+      if (mpp_pe() == mpp_root_pe()) print*,'NN: kdt=',GFS_control%kdt, GFS_Control%dtp
       call mpp_clock_begin(nnphysClock)
       Stateout_tmp = GFS_data(:)%Stateout
       !print *, "time step of physics: ", sngl(GFS_Control%dtp)
@@ -427,20 +428,6 @@ if (.true.) then
                                     GFS_data(nb)%Stateout%gv0(i,:),  &
                                     GFS_data(nb)%Stateout%gt0(i,:),  &
                                     GFS_data(nb)%Stateout%gq0(i,:,1),  &
-                                    !0., & !Atmos%Diag(nb)%CMM(i),      &
-                                    !0., & !GFS_interstitial(nb)%evcw(i),      &
-                                    !0., & !GFS_interstitial(nb)%evbs(i),      &
-                                    !0., & !GFS_interstitial(nb)%sbsno(i),      &
-                                    !0., & !GFS_interstitial(nb)%snohf(i),      &
-                                    !0., & !GFS_interstitial(nb)%snowc(i),      &
-                                    !0., & !GFS_data(nb)%Intdiag%srunoff(i),      &
-                                    !0., & !GFS_interstitial(nb)%trans(i),      &
-                                    !GFS_data(nb)%Sfcprop%tsfc(i),      &
-                                    !GFS_data(nb)%Sfcprop%tisfc(i),      &
-                                    !GFS_data(nb)%Sfcprop%q2m(i),      &
-                                    !0., & !GFS_data(nb)%Intdiag%epi(i),      &
-                                    !0., & !GFS_data(nb)%Sfcprop%zorl(i),      &
-                                    !0., & !GFS_data(nb)%Sfcprop%alboldxy(i),      &
                                     GFS_data(nb)%Radtend%sfcflw(i),      &
                                     GFS_data(nb)%Radtend%sfcfsw(i),      &
                                     GFS_data(nb)%Intdiag%topflw(i),      &
@@ -450,7 +437,8 @@ if (.true.) then
                                     real(jdat(3), 4), & ! doy
                                     real(GFS_data(nb)%Grid%xlon(i),4),     &  ! in radians
                                     real(GFS_data(nb)%Grid%xlat(i),4),     &
-                                    real(GFS_Control%dtp/(6.*3600.),4),    & !scaling using time_step_for_physics
+                                    !real(GFS_Control%dtp/(6.*3600.),4),    & !scaling using time_step_for_physics
+                                    real(1./6.,4),    & !scaling using time_step_for_physics
 !Outputs
                                     Stateout_tmp(nb)%gu0(i,:),      &
                                     Stateout_tmp(nb)%gv0(i,:),      &
@@ -770,7 +758,9 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
                         GFS_data%Intdiag, GFS_interstitial, Init_parm)
 
 !   if ( IPD_Control%do_full_phys_nn) &
+   if (GFS_control%do_bc) then
    call  init_nn(Init_parm%me)
+   
 
    allocate(Stateout_tmp(Atm_block%nblks))
    allocate(Sfcprop_tmp(Atm_block%nblks))
@@ -783,6 +773,7 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
    nnphysClock     = mpp_clock_id( 'NN Physics            ', flags=clock_flag_default, grain=CLOCK_COMPONENT )
    updnnphysClock  = mpp_clock_id( 'Copy NN Physics Output', flags=clock_flag_default, grain=CLOCK_COMPONENT )
 
+   end if
 !endif
 
    !--- populate/associate the Diag container elements

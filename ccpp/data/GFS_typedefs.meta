@@ -4985,6 +4985,12 @@
   units = flag
   dimensions = ()
   type = logical
+[do_bc]
+  standard_name = flag_for_nn_bias_correction
+  long_name = nn bias correction main switch
+  units = flag
+  dimensions = ()
+  type = logical
 [ca_sgs]
   standard_name = flag_for_sgs_cellular_automata
   long_name = switch for sgs ca

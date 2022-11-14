@@ -245,10 +245,10 @@
 !
 ! Unpack NN output vector
           !nn_output_vector(:) = 0.
-          gu0(:)       = ugrs(:) !+ nn_output_vector(128:254)*dt !+ ugrs   ! u component of layer wind
-          gv0(:)       = vgrs(:) !+ nn_output_vector(255:381)*dt !+ vgrs ! v component of layer wind
-          gt0(:)       = tgrs(:) + nn_output_vector(1:127)*dt   !+ tgrs! layer mean temperature 
-          oshm(:)      = shm(:)  !+ nn_output_vector(382:508)*dt !+ shm                      ! specific humidity
+          gu0(:)       = ugrs(:) + nn_output_vector(128:254)*dt ! u component of layer wind
+          gv0(:)       = vgrs(:) + nn_output_vector(255:381)*dt ! v component of layer wind
+          gt0(:)       = tgrs(:) + nn_output_vector(1:127)*dt   ! layer mean temperature 
+          oshm(:)      = shm(:)  + nn_output_vector(382:508)*dt ! specific humidity
 !
           !print*,'NN corr out', maxval(nn_output_vector(1:127)), minval(nn_output_vector(1:127))
           !print*,'NN corr out', maxval(nn_output_vector(128:254)), minval(nn_output_vector(128:254))
