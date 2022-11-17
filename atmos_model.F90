@@ -416,7 +416,7 @@ subroutine update_atmos_radiation_physics (Atmos)
 !if(IPD_Control%do_full_phys_nn) then
 !      if (debug) write(6,*) "Calling NN"
 
-if ( GFS_control%do_bc .and. mod(GFS_control%kdt*GFS_Control%dtp,3600.d0)==0 ) then
+if ( GFS_control%do_bc .and. mod(GFS_control%kdt*GFS_Control%dtp, GFS_control%bc_freq*3600.d0)==0 ) then
       if (mpp_pe() == mpp_root_pe()) print*,'NN: kdt=',GFS_control%kdt, GFS_Control%dtp
       call mpp_clock_begin(nnphysClock)
       Stateout_tmp = GFS_data(:)%Stateout
@@ -438,7 +438,7 @@ if ( GFS_control%do_bc .and. mod(GFS_control%kdt*GFS_Control%dtp,3600.d0)==0 ) t
                                     real(GFS_data(nb)%Grid%xlon(i),4),     &  ! in radians
                                     real(GFS_data(nb)%Grid%xlat(i),4),     &
                                     !real(GFS_Control%dtp/(6.*3600.),4),    & !scaling using time_step_for_physics
-                                    real(1./6.,4),    & !scaling using time_step_for_physics
+                                    real(GFS_control%bc_freq/6.,4),    & !scaling to match update frequency
 !Outputs
                                     Stateout_tmp(nb)%gu0(i,:),      &
                                     Stateout_tmp(nb)%gv0(i,:),      &
