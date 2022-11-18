@@ -145,15 +145,16 @@ public setup_exportdata
      integer                       :: mlon, mlat
      integer                       :: iau_offset         ! iau running window length
      logical                       :: pe                 ! current pe.
-     real(kind=8),             pointer, dimension(:)     :: ak, bk
+     real(kind=GFS_kind_phys), pointer, dimension(:)     :: ak, bk
      real(kind=GFS_kind_phys), pointer, dimension(:,:)   :: lon_bnd  => null() ! local longitude axis grid box corners in radians.
      real(kind=GFS_kind_phys), pointer, dimension(:,:)   :: lat_bnd  => null() ! local latitude axis grid box corners in radians.
      real(kind=GFS_kind_phys), pointer, dimension(:,:)   :: lon      => null() ! local longitude axis grid box centers in radians.
      real(kind=GFS_kind_phys), pointer, dimension(:,:)   :: lat      => null() ! local latitude axis grid box centers in radians.
      real(kind=GFS_kind_phys), pointer, dimension(:,:)   :: dx, dy
-     real(kind=8),             pointer, dimension(:,:)   :: area
-     real(kind=8),             pointer, dimension(:,:,:) :: layer_hgt, level_hgt
+     real(kind=GFS_kind_phys), pointer, dimension(:,:)   :: area
+     real(kind=GFS_kind_phys), pointer, dimension(:,:,:) :: layer_hgt, level_hgt
      type(domain2d)                :: domain             ! domain decomposition
+     type(domain2d)                :: domain_for_read    ! domain decomposition
      type(time_type)               :: Time               ! current time
      type(time_type)               :: Time_step          ! atmospheric time step.
      type(time_type)               :: Time_init          ! reference time.
@@ -181,7 +182,9 @@ logical :: debug        = .false.
 !logical :: debug        = .true.
 logical :: sync         = .false.
 real    :: avg_max_length=3600.
-namelist /atmos_model_nml/ blocksize, chksum_debug, dycore_only, debug, sync, ccpp_suite, avg_max_length
+logical :: ignore_rst_cksum = .false.
+namelist /atmos_model_nml/ blocksize, chksum_debug, dycore_only, debug, sync, ccpp_suite, avg_max_length, &
+                           ignore_rst_cksum
 
 type (time_type) :: diag_time, diag_time_fhzero
 
@@ -534,9 +537,9 @@ subroutine atmos_timestep_diagnostics(Atmos)
             psum  = psum + adiff
             if(adiff>=maxabs) then
               maxabs=adiff
-              pmaxloc(2:3) = (/ ATM_block%index(nb)%ii(i), ATM_block%index(nb)%jj(i) /)
-              pmaxloc(4:7) = (/ pdiff, GFS_data(nb)%Statein%pgr(i), &
-                   GFS_data(nb)%Grid%xlat(i), GFS_data(nb)%Grid%xlon(i) /)
+              pmaxloc(2:3) = (/ dble(ATM_block%index(nb)%ii(i)), dble(ATM_block%index(nb)%jj(i)) /)
+              pmaxloc(4:7) = (/ dble(pdiff), dble(GFS_data(nb)%Statein%pgr(i)), &
+                   dble(GFS_data(nb)%Grid%xlat(i)), dble(GFS_data(nb)%Grid%xlon(i)) /)
             endif
           enddo
           pcount = pcount+count
@@ -623,7 +626,8 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
 !-----------------------------------------------------------------------
    call atmosphere_resolution (nlon, nlat, global=.false.)
    call atmosphere_resolution (mlon, mlat, global=.true.)
-   call atmosphere_domain (Atmos%domain, Atmos%layout, Atmos%regional, Atmos%nested, &
+   call atmosphere_domain (Atmos%domain, Atmos%domain_for_read, Atmos%layout, &
+                           Atmos%regional, Atmos%nested, &
                            Atmos%moving_nest_parent, Atmos%is_moving_nest, &
                            Atmos%ngrids, Atmos%mygrid, Atmos%pelist)
    call atmosphere_diag_axes (Atmos%axes)
@@ -807,7 +811,8 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
    call GFS_restart_populate (GFS_restart_var, GFS_control, GFS_data%Statein, GFS_data%Stateout, GFS_data%Sfcprop, &
                               GFS_data%Coupling, GFS_data%Grid, GFS_data%Tbd, GFS_data%Cldprop,  GFS_data%Radtend, &
                               GFS_data%IntDiag, Init_parm, GFS_Diag)
-   call FV3GFS_restart_read (GFS_data, GFS_restart_var, Atm_block, GFS_control, Atmos%domain, Atm(mygrid)%flagstruct%warm_start)
+   call FV3GFS_restart_read (GFS_data, GFS_restart_var, Atm_block, GFS_control, Atmos%domain_for_read, &
+                             Atm(mygrid)%flagstruct%warm_start, ignore_rst_cksum)
    if(GFS_control%do_ca .and. Atm(mygrid)%flagstruct%warm_start)then
       call read_ca_restart (Atmos%domain,GFS_control%ncells,GFS_control%nca,GFS_control%ncells_g,GFS_control%nca_g)
    endif
@@ -1769,22 +1774,22 @@ subroutine update_atmos_chemistry(state, rc)
       enddo
 
       ! -- zero out accumulated fields
+      if (.not. GFS_control%cplflx .and. .not. GFS_control%cpllnd) then
 !$OMP parallel do default (none) &
 !$OMP             shared  (nj, ni, Atm_block, GFS_control, GFS_data) &
 !$OMP             private (j, jb, i, ib, nb, ix)
-      do j = 1, nj
-        jb = j + Atm_block%jsc - 1
-        do i = 1, ni
-          ib = i + Atm_block%isc - 1
-          nb = Atm_block%blkno(ib,jb)
-          ix = Atm_block%ixp(ib,jb)
-          GFS_data(nb)%coupling%rainc_cpl(ix)  = zero
-          if (.not.GFS_control%cplflx) then
+        do j = 1, nj
+          jb = j + Atm_block%jsc - 1
+          do i = 1, ni
+            ib = i + Atm_block%isc - 1
+            nb = Atm_block%blkno(ib,jb)
+            ix = Atm_block%ixp(ib,jb)
+            GFS_data(nb)%coupling%rainc_cpl(ix)  = zero
             GFS_data(nb)%coupling%rain_cpl(ix) = zero
             GFS_data(nb)%coupling%snow_cpl(ix) = zero
-          end if
+          enddo
         enddo
-      enddo
+      end if
 
       if (GFS_control%debug) then
         ! -- diagnostics
@@ -3088,6 +3093,9 @@ end subroutine update_atmos_chemistry
             ! MEAN precipitation rate (kg/m2/s)
             case ('mean_prec_rate')
               call block_data_copy(datar82d, GFS_data(nb)%coupling%rain_cpl, Atm_block, nb, scale_factor=rtimek, rc=localrc)
+            ! MEAN convective precipitation rate (kg/m2/s)
+            case ('mean_prec_rate_conv')
+              call block_data_copy(datar82d, GFS_Data(nb)%Coupling%rainc_cpl, Atm_block, nb, scale_factor=rtimek, rc=localrc)
             ! MEAN snow precipitation rate (kg/m2/s)
             case ('mean_fprec_rate')
               call block_data_copy(datar82d, GFS_data(nb)%coupling%snow_cpl, Atm_block, nb, scale_factor=rtimek, rc=localrc)
@@ -3098,19 +3106,38 @@ end subroutine update_atmos_chemistry
             ! bottom layer temperature (t)
             case('inst_temp_height_lowest')
               call block_data_copy_or_fill(datar82d, DYCORE_data(nb)%coupling%t_bot, zeror8, Atm_block, nb, rc=localrc)
+            case('inst_temp_height_lowest_from_phys')
+              call block_data_copy_or_fill(datar82d, GFS_data(nb)%Statein%tgrs, 1, zeror8, Atm_block, nb, rc=localrc)
             ! bottom layer specific humidity (q)
             !    !    ! CHECK if tracer 1 is for specific humidity     !    !    !
             case('inst_spec_humid_height_lowest')
               call block_data_copy_or_fill(datar82d, DYCORE_data(nb)%coupling%tr_bot, 1, zeror8, Atm_block, nb, rc=localrc)
+            case('inst_spec_humid_height_lowest_from_phys')
+              call block_data_copy_or_fill(datar82d, GFS_data(nb)%Statein%qgrs, 1, GFS_Control%ntqv, zeror8, Atm_block, nb, rc=localrc)
             ! bottom layer zonal wind (u)
             case('inst_zonal_wind_height_lowest')
               call block_data_copy_or_fill(datar82d, DYCORE_data(nb)%coupling%u_bot, zeror8, Atm_block, nb, rc=localrc)
-            ! bottom layer meridionalw wind (v)
+            ! bottom layer meridional wind (v)
             case('inst_merid_wind_height_lowest')
               call block_data_copy_or_fill(datar82d, DYCORE_data(nb)%coupling%v_bot, zeror8, Atm_block, nb, rc=localrc)
+            ! bottom layer zonal wind (u) from physics
+            case('inst_zonal_wind_height_lowest_from_phys')
+              call block_data_copy_or_fill(datar82d, GFS_data(nb)%Statein%ugrs, 1, zeror8, Atm_block, nb, rc=localrc)
+            ! bottom layer meridional wind (v) from physics
+            case('inst_merid_wind_height_lowest_from_phys')
+              call block_data_copy_or_fill(datar82d, GFS_data(nb)%Statein%vgrs, 1, zeror8, Atm_block, nb, rc=localrc)
+            ! surface friction velocity
+            case('surface_friction_velocity')
+              call block_data_copy_or_fill(datar82d, GFS_data(nb)%Sfcprop%uustar, zeror8, Atm_block, nb, rc=localrc)
             ! bottom layer pressure (p)
             case('inst_pres_height_lowest')
               call block_data_copy_or_fill(datar82d, DYCORE_data(nb)%coupling%p_bot, zeror8, Atm_block, nb, rc=localrc)
+            ! bottom layer pressure (p) from physics
+            case('inst_pres_height_lowest_from_phys')
+              call block_data_copy_or_fill(datar82d, GFS_data(nb)%Statein%prsl, 1, zeror8, Atm_block, nb, rc=localrc)
+            ! dimensionless exner function at surface adjacent layer
+            case('inst_exner_function_height_lowest')
+              call block_data_copy_or_fill(datar82d, GFS_data(nb)%Statein%prslk, 1, zeror8, Atm_block, nb, rc=localrc)
             ! bottom layer height (z)
             case('inst_height_lowest')
               call block_data_copy_or_fill(datar82d, DYCORE_data(nb)%coupling%z_bot, zeror8, Atm_block, nb, rc=localrc)
@@ -3188,24 +3215,37 @@ end subroutine update_atmos_chemistry
           GFS_data(nb)%coupling%dvsfc_cpl(ix)  = zero
           GFS_data(nb)%coupling%dtsfc_cpl(ix)  = zero
           GFS_data(nb)%coupling%dqsfc_cpl(ix)  = zero
-          GFS_data(nb)%coupling%dlwsfc_cpl(ix) = zero
-          GFS_data(nb)%coupling%dswsfc_cpl(ix) = zero
-          GFS_data(nb)%coupling%rain_cpl(ix)   = zero
           GFS_data(nb)%coupling%nlwsfc_cpl(ix) = zero
-          GFS_data(nb)%coupling%nswsfc_cpl(ix) = zero
           GFS_data(nb)%coupling%dnirbm_cpl(ix) = zero
           GFS_data(nb)%coupling%dnirdf_cpl(ix) = zero
           GFS_data(nb)%coupling%dvisbm_cpl(ix) = zero
           GFS_data(nb)%coupling%dvisdf_cpl(ix) = zero
-          GFS_data(nb)%coupling%nnirbm_cpl(ix) = zero
-          GFS_data(nb)%coupling%nnirdf_cpl(ix) = zero
-          GFS_data(nb)%coupling%nvisbm_cpl(ix) = zero
-          GFS_data(nb)%coupling%nvisdf_cpl(ix) = zero
-          GFS_data(nb)%coupling%snow_cpl(ix)   = zero
         enddo
       enddo
       if (mpp_pe() == mpp_root_pe()) print *,'zeroing coupling accumulated fields at kdt= ',GFS_control%kdt
     endif !cplflx
+!---
+    if (GFS_control%cplflx .or. GFS_control%cpllnd) then
+! zero out accumulated fields
+!$omp parallel do default(shared) private(i,j,nb,ix)
+      do j=jsc,jec
+        do i=isc,iec
+          nb = Atm_block%blkno(i,j)
+          ix = Atm_block%ixp(i,j)
+          GFS_data(nb)%coupling%dlwsfc_cpl(ix) = zero
+          GFS_data(nb)%coupling%dswsfc_cpl(ix) = zero
+          GFS_data(nb)%coupling%rain_cpl(ix)   = zero
+          GFS_data(nb)%coupling%rainc_cpl(ix)  = zero
+          GFS_data(nb)%coupling%snow_cpl(ix)   = zero
+          GFS_data(nb)%coupling%nswsfc_cpl(ix) = zero
+          GFS_data(nb)%coupling%nnirbm_cpl(ix) = zero
+          GFS_data(nb)%coupling%nnirdf_cpl(ix) = zero
+          GFS_data(nb)%coupling%nvisbm_cpl(ix) = zero
+          GFS_data(nb)%coupling%nvisdf_cpl(ix) = zero
+        enddo
+      enddo
+      if (mpp_pe() == mpp_root_pe()) print *,'zeroing coupling accumulated fields at kdt= ',GFS_control%kdt
+    endif !cplflx or cpllnd
 
   end subroutine setup_exportdata
 
@@ -3279,7 +3319,7 @@ end subroutine update_atmos_chemistry
    integer, pointer, intent(out) :: pelist(:)
 
    call get_nth_domain_info(n, layout, nx, ny, pelist)
- 
+
   end subroutine atmos_model_get_nth_domain_info
 
 end module atmos_model_mod
