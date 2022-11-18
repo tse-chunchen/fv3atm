@@ -1191,6 +1191,7 @@ module GFS_typedefs
     integer              :: nseed_g         !< cellular automata seed frequency
     logical              :: do_ca           !< cellular automata main switch
     logical              :: do_bc           !< nn bias correction main switch
+    real(kind=kind_phys) :: bc_freq         !< frequency of nn bias correction (unit:hour)
     logical              :: ca_sgs          !< switch for sgs ca
     logical              :: ca_global       !< switch for global ca
     logical              :: ca_smooth       !< switch for gaussian spatial filter
@@ -3347,6 +3348,7 @@ module GFS_typedefs
     integer              :: nspinup        = 1
     logical              :: do_ca          = .false.
     logical              :: do_bc          = .true.
+    real(kind=kind_phys) :: bc_freq        = 1.0
     logical              :: ca_sgs         = .false.
     logical              :: ca_global      = .false.
     logical              :: ca_smooth      = .false.
@@ -3531,7 +3533,7 @@ module GFS_typedefs
                                h0facu, h0facs,                                              &
                           !--- cellular automata
                                nca, ncells, nlives, nca_g, ncells_g, nlives_g, nfracseed,   &
-                               nseed,  nseed_g,  nthresh, do_ca, do_bc,                     &
+                               nseed,  nseed_g,  nthresh, do_ca, do_bc, bc_freq,            &
                                ca_sgs, ca_global,iseed_ca,ca_smooth,                        &
                                nspinup,ca_amplitude,nsmooth,ca_closure,ca_entr,ca_trigger,  &
                           !--- IAU
@@ -4378,6 +4380,7 @@ module GFS_typedefs
     Model%ca_global        = ca_global
     Model%do_ca            = do_ca
     Model%do_bc            = do_bc
+    Model%bc_freq          = bc_freq
     Model%ca_sgs           = ca_sgs
     Model%iseed_ca         = iseed_ca
     Model%ca_smooth        = ca_smooth
@@ -6004,6 +6007,7 @@ module GFS_typedefs
       print *, ' ca_sgs            : ', Model%ca_sgs
       print *, ' do_ca             : ', Model%do_ca
       print *, ' do_bc             : ', Model%do_bc
+      print *, ' bc_freq           : ', Model%bc_freq
       print *, ' iseed_ca          : ', Model%iseed_ca
       print *, ' ca_smooth         : ', Model%ca_smooth
       print *, ' nspinup           : ', Model%nspinup
