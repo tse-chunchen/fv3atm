@@ -211,6 +211,7 @@
 !
 ! Local variables
           real(kind=4)  nn_input_vector(523),  nn_output_vector(508) 
+          !integer i
           !print*,'NN corr', maxval(tgrs), minval(tgrs), log(pgr), maxval(ugrs), minval(ugrs), maxval(vgrs), minval(vgrs),maxval(shm), minval(shm)
 !             
 ! Create NN input vector:
@@ -245,12 +246,16 @@
 !
 ! Unpack NN output vector
           !nn_output_vector(:) = 0.
-          gu0(:)       = ugrs(:) + nn_output_vector(128:254)*dt ! u component of layer wind
-          gv0(:)       = vgrs(:) + nn_output_vector(255:381)*dt ! v component of layer wind
-          gt0(:)       = tgrs(:) + nn_output_vector(1:127)*dt   ! layer mean temperature 
-          oshm(:)      = shm(:)  + nn_output_vector(382:508)*dt ! specific humidity
+          !do i =1,127
+          !   nn_output_vector(i) = min(max(nn_output_vector(i),-5.),5.)
+          !end do
+ 
+          gu0(:)       = ugrs(:) + nn_output_vector(254:128:-1)*dt ! u component of layer wind
+          gv0(:)       = vgrs(:) + nn_output_vector(381:255:-1)*dt ! v component of layer wind
+          gt0(:)       = tgrs(:) + nn_output_vector(127:1:-1)*dt   ! layer mean temperature 
+          oshm(:)      = shm(:)  + nn_output_vector(508:382:-1)*dt ! specific humidity
 !
-          !print*,'NN corr out', maxval(nn_output_vector(1:127)), minval(nn_output_vector(1:127))
+          !print*,'NN corr out', maxval(nn_output_vector(1:127)), minval(nn_output_vector(1:127)), dt
           !print*,'NN corr out', maxval(nn_output_vector(128:254)), minval(nn_output_vector(128:254))
           !print*,'NN corr out', maxval(nn_output_vector(255:381)), minval(nn_output_vector(255:381))
           !print*,'NN corr out', maxval(nn_output_vector(382:508)), minval(nn_output_vector(382:508))
@@ -309,7 +314,7 @@
               !Y(1:127) =  matmul( nns(1)%w2,x_tmp1 )+nns(1)%b2
               Y((member-1)*127+1:member*127) = matmul( nns(member)%w2,x_tmp1 )+nns(member)%b2
               !print*,"NN",maxval( nns(member)%w0),maxval(nns(member)%w1),maxval( nns(member)%w2)
-              !print*,"NN:",member, 3,  maxval(Y((member-1)*127+1:member*127)), minval(Y((member-1)*127+1:member*127)), shape(nns(member)%w2)
+              !print*,"NN:",member, 3,  maxval(Y((member-1)*127+1:member*127)), minval(Y((member-1)*127+1:member*127))
               !print*,"NN",shape(matmul( nns(member)%w2,x_tmp1 )),shape(nns(member)%b2), shape( matmul( nns(member)%w2,x_tmp1 )+nns(member)%b2)
           end do    
           !print*,"NN:", maxval(Y(1:127)), minval(Y(1:127)),maxval(X(1:127)),minval(X(1:127))

@@ -419,8 +419,12 @@ subroutine update_atmos_radiation_physics (Atmos)
 !if(IPD_Control%do_full_phys_nn) then
 !      if (debug) write(6,*) "Calling NN"
 
-if ( GFS_control%do_bc .and. mod(GFS_control%kdt*GFS_Control%dtp, GFS_control%bc_freq*3600.d0)==0 ) then
+!if ( GFS_control%do_bc .and. mod(GFS_control%kdt*GFS_Control%dtp,GFS_control%bc_freq*3600)==0 ) then
+if ( GFS_control%do_bc .and. mod(GFS_control%kdt*GFS_Control%dtp,GFS_control%bc_freq*3600)==GFS_Control%dtp .and. GFS_control%kdt>1 ) then
       if (mpp_pe() == mpp_root_pe()) print*,'NN: kdt=',GFS_control%kdt, GFS_Control%dtp
+      if (mpp_pe() == mpp_root_pe()) print*,'NN: fhour=',real(jdat(5), 4),'sin(fhour)=',sin(2.0* 3.1415927 * real(jdat(5), 4)/24.0),' doy=',real(jdat(3), 4) 
+
+!,' lon(1,1),lon(nb,blksz),lat(nb,1):',real(GFS_data(1)%Grid%xlon(1),4),real(GFS_data(Atm_block%nblks)%Grid%xlon(Atm_block%blksz(Atm_block%nblks)),4)
       call mpp_clock_begin(nnphysClock)
       Stateout_tmp = GFS_data(:)%Stateout
       !print *, "time step of physics: ", sngl(GFS_Control%dtp)
