@@ -5021,7 +5021,7 @@
   units = flag
   dimensions = ()
   type = logical
-[do_bc]
+[do_nn_bias_correction]
   standard_name = flag_for_nn_bias_correction
   long_name = nn bias correction main switch
   units = flag

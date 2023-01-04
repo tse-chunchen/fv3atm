@@ -1196,7 +1196,7 @@ module GFS_typedefs
     integer              :: nseed           !< cellular automata seed frequency
     integer              :: nseed_g         !< cellular automata seed frequency
     logical              :: do_ca           !< cellular automata main switch
-    logical              :: do_bc           !< nn bias correction main switch
+    logical              :: do_nn_bias_correction  !< nn bias correction main switch
     real(kind=kind_phys) :: bc_freq         !< frequency of nn bias correction (unit:hour)
     logical              :: ca_sgs          !< switch for sgs ca
     logical              :: ca_global       !< switch for global ca
@@ -3384,7 +3384,7 @@ module GFS_typedefs
     integer              :: iseed_ca       = 1
     integer              :: nspinup        = 1
     logical              :: do_ca          = .false.
-    logical              :: do_bc          = .true.
+    logical              :: do_nn_bias_correction = .false.
     real(kind=kind_phys) :: bc_freq        = 1.0
     logical              :: ca_sgs         = .false.
     logical              :: ca_global      = .false.
@@ -3575,7 +3575,7 @@ module GFS_typedefs
                                h0facu, h0facs,                                              &
                           !--- cellular automata
                                nca, ncells, nlives, nca_g, ncells_g, nlives_g, nfracseed,   &
-                               nseed,  nseed_g,  nthresh, do_ca, do_bc, bc_freq,            &
+                               nseed,  nseed_g,  nthresh, do_ca, do_nn_bias_correction, bc_freq,            &
                                ca_sgs, ca_global,iseed_ca,ca_smooth,                        &
                                nspinup,ca_amplitude,nsmooth,ca_closure,ca_entr,ca_trigger,  &
                           !--- IAU
@@ -4439,7 +4439,7 @@ module GFS_typedefs
     Model%nseed_g          = nseed_g
     Model%ca_global        = ca_global
     Model%do_ca            = do_ca
-    Model%do_bc            = do_bc
+    Model%do_nn_bias_correction = do_nn_bias_correction
     Model%bc_freq          = bc_freq
     Model%ca_sgs           = ca_sgs
     Model%iseed_ca         = iseed_ca
@@ -6103,7 +6103,7 @@ module GFS_typedefs
       print *, ' ca_global         : ', Model%ca_global
       print *, ' ca_sgs            : ', Model%ca_sgs
       print *, ' do_ca             : ', Model%do_ca
-      print *, ' do_bc             : ', Model%do_bc
+      print *, ' do_nn_bias_correction : ', Model%do_nn_bias_correction
       print *, ' bc_freq           : ', Model%bc_freq
       print *, ' iseed_ca          : ', Model%iseed_ca
       print *, ' ca_smooth         : ', Model%ca_smooth

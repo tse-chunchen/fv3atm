@@ -416,66 +416,46 @@ subroutine update_atmos_radiation_physics (Atmos)
 
     endif
 
-!if(IPD_Control%do_full_phys_nn) then
-!      if (debug) write(6,*) "Calling NN"
-
-!if ( GFS_control%do_bc .and. mod(GFS_control%kdt*GFS_Control%dtp,GFS_control%bc_freq*3600)==0 ) then
-if ( GFS_control%do_bc .and. mod(GFS_control%kdt*GFS_Control%dtp,GFS_control%bc_freq*3600)==GFS_Control%dtp .and. GFS_control%kdt>1 ) then
+!--- execute neural network based bias correction
+if ( GFS_control%do_nn_bias_correction .and. mod(GFS_control%kdt*GFS_Control%dtp,GFS_control%bc_freq*3600)==GFS_Control%dtp .and. GFS_control%kdt>1 ) then
       if (mpp_pe() == mpp_root_pe()) print*,'NN: kdt=',GFS_control%kdt, GFS_Control%dtp
-      if (mpp_pe() == mpp_root_pe()) print*,'NN: fhour=',real(jdat(5), 4),'sin(fhour)=',sin(2.0* 3.1415927 * real(jdat(5), 4)/24.0),' doy=',real(jdat(3), 4) 
+      if (mpp_pe() == mpp_root_pe()) print*,'NN: fhour=',real(jdat(5), 4),' doy=',real(jdat(3), 4) 
 
-!,' lon(1,1),lon(nb,blksz),lat(nb,1):',real(GFS_data(1)%Grid%xlon(1),4),real(GFS_data(Atm_block%nblks)%Grid%xlon(Atm_block%blksz(Atm_block%nblks)),4)
       call mpp_clock_begin(nnphysClock)
       Stateout_tmp = GFS_data(:)%Stateout
-      !print *, "time step of physics: ", sngl(GFS_Control%dtp)
        do nb = 1,Atm_block%nblks
           do i = 1, Atm_block%blksz(nb)
-             call eval_nn(          GFS_data(nb)%Statein%pgr(i),      &
-                                    GFS_data(nb)%Stateout%gu0(i,:),  &   ! get physics output
-                                    GFS_data(nb)%Stateout%gv0(i,:),  &
-                                    GFS_data(nb)%Stateout%gt0(i,:),  &
-                                    GFS_data(nb)%Stateout%gq0(i,:,1),  &
-                                    GFS_data(nb)%Radtend%sfcflw(i),      &
-                                    GFS_data(nb)%Radtend%sfcfsw(i),      &
-                                    GFS_data(nb)%Intdiag%topflw(i),      &
-                                    GFS_data(nb)%Intdiag%topfsw(i),      &
-                                    real(GFS_data(nb)%Sfcprop%slmsk(i), 4),      &
-                                    real(jdat(5), 4), & ! fhour
-                                    real(jdat(3), 4), & ! doy
-                                    real(GFS_data(nb)%Grid%xlon(i),4),     &  ! in radians
-                                    real(GFS_data(nb)%Grid%xlat(i),4),     &
-                                    !real(GFS_Control%dtp/(6.*3600.),4),    & !scaling using time_step_for_physics
-                                    real(GFS_control%bc_freq/6.,4),    & !scaling to match update frequency
+             call eval_nn(          
+!Inputs
+                                    GFS_data(nb)%Statein%pgr(i),      &    ! surface pressure
+                                    GFS_data(nb)%Stateout%gu0(i,:),   &    ! get physics output: u-wind
+                                    GFS_data(nb)%Stateout%gv0(i,:),   &    ! v-wind
+                                    GFS_data(nb)%Stateout%gt0(i,:),   &    ! temperature
+                                    GFS_data(nb)%Stateout%gq0(i,:,1), &    ! specific humidity
+                                    GFS_data(nb)%Radtend%sfcflw(i),      & ! surface longwave fluxes
+                                    GFS_data(nb)%Radtend%sfcfsw(i),      & ! surface shortwave fluxes
+                                    GFS_data(nb)%Intdiag%topflw(i),      & ! TOA longwave fluxes
+                                    GFS_data(nb)%Intdiag%topfsw(i),      & ! TOA shortwave fluxes
+                                    real(GFS_data(nb)%Sfcprop%slmsk(i), 4),  & ! land_sea_ice mask
+                                    real(jdat(5), 4),                    & ! fhour
+                                    real(jdat(3), 4),                    & ! doy
+                                    real(GFS_data(nb)%Grid%xlon(i),4),   & ! longitude in radians
+                                    real(GFS_data(nb)%Grid%xlat(i),4),   & ! latitude in radians
+                                    real(GFS_control%bc_freq/6.,4),      & ! scaling to match update frequency
 !Outputs
-                                    Stateout_tmp(nb)%gu0(i,:),      &
-                                    Stateout_tmp(nb)%gv0(i,:),      &
-                                    Stateout_tmp(nb)%gt0(i,:),      &
-                                    Stateout_tmp(nb)%gq0(i,:,1)     )
+                                    Stateout_tmp(nb)%gu0(i,:),      & ! u-wind
+                                    Stateout_tmp(nb)%gv0(i,:),      & ! v-wind
+                                    Stateout_tmp(nb)%gt0(i,:),      & ! temperature
+                                    Stateout_tmp(nb)%gq0(i,:,1)     & ! specific humidity
+                        )
 
           enddo
        enddo
        call mpp_clock_end(nnphysClock)
-!      if (debug) write(6,*) "Returned from NN"
-
 
    call mpp_clock_begin(updnnphysClock)
     GFS_data(:)%Stateout  = Stateout_tmp
    call mpp_clock_end(updnnphysClock)
-!endif
-!       do nb = 1,Atm_block%nblks
-!          do i = 1, Atm_block%blksz(nb)
-!
-!!             IPD_Data(nb)%Sfcprop%smc(i,:)  = Sfcprop_tmp(nb)%smc(i,:)
-!             IPD_Data(nb)%Sfcprop%smc(i,:)   = Sfcprop_tmp(nb)%smc(i,:)
-!             IPD_Data(nb)%Sfcprop%slc(i,:)  = Sfcprop_tmp(nb)%slc(i,:)
-!             IPD_Data(nb)%Sfcprop%stc(i,:)   = Sfcprop_tmp(nb)%stc(i,:)
-!            IPD_Data(nb)%Sfcprop%tsfc(i)  = Sfcprop_tmp(nb)%tsfc(i)
-!             IPD_Data(nb)%Sfcprop%canopy(i) = Sfcprop_tmp(nb)%canopy(i)
-!             IPD_Data(nb)%Sfcprop%hice(i) = Sfcprop_tmp(nb)%hice(i)
-!             IPD_Data(nb)%Sfcprop%weasd(i) = Sfcprop_tmp(nb)%weasd(i)
-!
-!          enddo
-!       enddo
 endif
 
 
@@ -765,8 +745,7 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
                         GFS_data%Coupling, GFS_data%Grid, GFS_data%Tbd, GFS_data%Cldprop, GFS_data%Radtend, &
                         GFS_data%Intdiag, GFS_interstitial, Init_parm)
 
-!   if ( IPD_Control%do_full_phys_nn) &
-   if (GFS_control%do_bc) then
+   if (GFS_control%do_nn_bias_correction) then
    call  init_nn(Init_parm%me)
    
 
