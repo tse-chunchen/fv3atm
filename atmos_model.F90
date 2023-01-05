@@ -111,7 +111,11 @@ use neuralphys,         only: init_nn, eval_nn
 
 
 #ifdef MOVING_NEST
-use fv_moving_nest_main_mod, only: update_moving_nest, dump_moving_nest
+use fv_moving_nest_main_mod,  only: update_moving_nest, dump_moving_nest
+use fv_moving_nest_main_mod,  only: nest_tracker_init
+use fv_moving_nest_main_mod,  only: moving_nest_end, nest_tracker_end
+use fv_moving_nest_types_mod, only: fv_moving_nest_init
+use fv_tracker_mod,           only: check_is_moving_nest, execute_tracker
 #endif
 !-----------------------------------------------------------------------
 
@@ -140,6 +144,7 @@ public setup_exportdata
      logical                       :: nested             ! true if there is a nest
      logical                       :: moving_nest_parent ! true if this grid has a moving nest child
      logical                       :: is_moving_nest     ! true if this is a moving nest grid
+     logical                       :: isAtCapTime        ! true if currTime is at the cap driverClock's currTime
      integer                       :: ngrids             !
      integer                       :: mygrid             !
      integer                       :: mlon, mlat
@@ -307,7 +312,7 @@ subroutine update_atmos_radiation_physics (Atmos)
       ! receives coupled fields through the above assign_importdata step. Thus,
       ! an extra step is needed to fill the coupling variables in the nest,
       ! by downscaling the coupling variables from its parent.
-      if (Atmos%ngrids > 1) then
+      if (Atmos%isAtCapTime .and. Atmos%ngrids > 1) then
         if (GFS_control%cplocn2atm .or. GFS_control%cplwav2atm) then
           call atmosphere_fill_nest_cpl(Atm_block, GFS_control, GFS_data)
         endif
@@ -594,6 +599,7 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
 
 !---- set the atmospheric model time ------
 
+   Atmos % isAtCapTime = .false.
    Atmos % Time_init = Time_init
    Atmos % Time      = Time
    Atmos % Time_step = Time_step
@@ -606,14 +612,21 @@ subroutine atmos_model_init (Atmos, Time_init, Time, Time_step)
 !---------- (need name of CCPP suite definition file from input.nml) ---------
    call atmosphere_init (Atmos%Time_init, Atmos%Time, Atmos%Time_step,&
                          Atmos%grid, Atmos%area)
-
+#ifdef MOVING_NEST
+   call fv_moving_nest_init(Atm, mygrid)
+   call nest_tracker_init()
+#endif
 !-----------------------------------------------------------------------
    call atmosphere_resolution (nlon, nlat, global=.false.)
    call atmosphere_resolution (mlon, mlat, global=.true.)
    call atmosphere_domain (Atmos%domain, Atmos%domain_for_read, Atmos%layout, &
                            Atmos%regional, Atmos%nested, &
-                           Atmos%moving_nest_parent, Atmos%is_moving_nest, &
                            Atmos%ngrids, Atmos%mygrid, Atmos%pelist)
+   Atmos%moving_nest_parent = .false.
+   Atmos%is_moving_nest = .false.
+#ifdef MOVING_NEST
+   call check_is_moving_nest(Atm, Atmos%mygrid, Atmos%ngrids, Atmos%is_moving_nest, Atmos%moving_nest_parent)
+#endif
    call atmosphere_diag_axes (Atmos%axes)
    call atmosphere_etalvls (Atmos%ak, Atmos%bk, flip=flip_vc)
 
@@ -1001,6 +1014,9 @@ subroutine update_atmos_model_state (Atmos, rc)
     call mpp_clock_begin(fv3Clock)
     call mpp_clock_begin(updClock)
     call atmosphere_state_update (Atmos%Time, GFS_data, IAU_Data, Atm_block, flip_vc)
+#ifdef MOVING_NEST
+    call execute_tracker(Atm, mygrid, Atmos%Time, Atmos%Time_step)
+#endif
     call mpp_clock_end(updClock)
     call mpp_clock_end(fv3Clock)
 
@@ -1102,6 +1118,14 @@ subroutine atmos_model_end (Atmos)
 
 !-----------------------------------------------------------------------
 !---- termination routine for atmospheric model ----
+
+#ifdef MOVING_NEST
+    !  Call this before atmosphere_end(), because that deallocates Atm
+    if (Atmos%is_moving_nest) then
+      call moving_nest_end()
+      call nest_tracker_end()
+    endif
+#endif
 
     call atmosphere_end (Atmos % Time, Atmos%grid, restart_endfcst)
 
