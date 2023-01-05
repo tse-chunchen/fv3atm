@@ -144,15 +144,15 @@
                   nns(member)%b2 = 0.
               !    write(varname, "(A1,I1)") "w",layer-1
               !    call get_var2_real(ncid, varname, l1, l0, nns(member,layer)%w(:,:))
-                  call get_var2_real(ncid, 'w0', 4096, 523,  nns(member)%w0) 
-                  call get_var2_real(ncid, 'w1', 4096, 4096, nns(member)%w1)
-                  call get_var2_real(ncid, 'w2', 127, 4096,  nns(member)%w2)
+                  call get_var2_real(ncid, 'w0', nn_sizes(member,2), nn_sizes(member,1), nns(member)%w0) 
+                  call get_var2_real(ncid, 'w1', nn_sizes(member,3), nn_sizes(member,2), nns(member)%w1)
+                  call get_var2_real(ncid, 'w2', nn_sizes(member,4), nn_sizes(member,3),  nns(member)%w2)
                   !call get_var2_double(ncid, varname, l1, l0,nns(member,layer)%w(:,:))
               !    write(varname, "(A1,I1)") "b",layer-1
                   !call get_var1_real(ncid, varname, l1, nns(member,layer)%b(:))
-                  call get_var1_real(ncid, 'b0', 4096, nns(member)%b0)
-                  call get_var1_real(ncid, 'b1', 4096, nns(member)%b1)
-                  call get_var1_real(ncid, 'b2', 127,  nns(member)%b2)
+                  call get_var1_real(ncid, 'b0', nn_sizes(member,2), nns(member)%b0)
+                  call get_var1_real(ncid, 'b1', nn_sizes(member,3), nns(member)%b1)
+                  call get_var1_real(ncid, 'b2', nn_sizes(member,4),  nns(member)%b2)
                   !call get_var1_double(ncid, varname, l1, nns(member,layer)%b(:))
                   if (me == 0)  print*,'Module NEURALPHYS: NN w:',member,shape(nns(member)%w0),shape(nns(member)%w1),shape(nns(member)%w2)
                   if (me == 0)  print*,'Module NEURALPHYS: NN b:',member,shape(nns(member)%b0),shape(nns(member)%b1),shape(nns(member)%b2)
@@ -187,7 +187,7 @@
           real(kind=8), intent(out):: gu0(127),gv0(127),gt0(127),oshm(127)
 !
 ! Local variables
-          real(kind=4)  nn_input_vector(523),  nn_output_vector(508) 
+          real(kind=4)  nn_input_vector(nn_sizes(1,1)), nn_output_vector(nn_sizes(1,4)*4) 
 ! Create NN input vector:
           nn_input_vector(1:127)  = tgrs(127:1:-1)        ! temperature (inverted in vertical)
           nn_input_vector(128)    = log(pgr)              ! log(surface pressure)
@@ -215,10 +215,10 @@
           call compute_nn(nn_input_vector,nn_output_vector) !,nn_num_of_members,& 
 
 ! Unpack NN output vector
-          gu0(:)       = ugrs(:) + nn_output_vector(254:128:-1)*dt ! u component of layer wind
-          gv0(:)       = vgrs(:) + nn_output_vector(381:255:-1)*dt ! v component of layer wind
-          gt0(:)       = tgrs(:) + nn_output_vector(127:1:-1)*dt   ! layer mean temperature 
-          oshm(:)      = shm(:)  + nn_output_vector(508:382:-1)*dt ! specific humidity
+          gu0(:)       = ugrs(:) + nn_output_vector(254:128:-1)*dt ! u component of layer wind (inverted in vertical)
+          gv0(:)       = vgrs(:) + nn_output_vector(381:255:-1)*dt ! v component of layer wind (inverted in vertical)
+          gt0(:)       = tgrs(:) + nn_output_vector(127:1:-1)*dt   ! layer mean temperature (inverted in vertical) 
+          oshm(:)      = shm(:)  + nn_output_vector(508:382:-1)*dt ! specific humidity (inverted in vertical)
         end subroutine eval_nn
 
         subroutine relum(x,y)
@@ -233,16 +233,16 @@
         subroutine  compute_nn(X,Y) !,num_of_members,w1,w2,b1,b2,nhid)
  !  Input:
  !            X(IN) NN input vector 
-          real(kind=4), intent(in):: X(523)
+          real(kind=4), intent(in):: X(nn_sizes(1,1))
 
  !   Ouput:
  !            Y(OUT) NN output vector (composition coefficients for SNN)
 
-          real(kind=4), intent(out):: Y(508)
+          real(kind=4), intent(out):: Y(nn_sizes(1,4)*4)
 
 ! Local variables 
           integer i, nout
-          real(kind=4) :: x_tmp1(4096), x_tmp2(4096)! x2(:),x3(:)
+          real(kind=4) :: x_tmp1(nn_sizes(1,2)), x_tmp2(nn_sizes(1,3))! x2(:),x3(:)
           !real(kind=kind_phys), allocatable :: x_tmp1(:), x_tmp2(:)! x2(:),x3(:)
           integer member,layer, l0, l1
           Y(:) = 0.0
